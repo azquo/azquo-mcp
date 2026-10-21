@@ -41,6 +41,8 @@ claude mcp add --transport http azquo https://data.azquo.ai/mcp
 }
 ```
 
+Setup notes written for AI agents (Cline and others) are in [`llms-install.md`](llms-install.md).
+
 Clients that support OAuth sign in with an Azquo login (OAuth 2.1 with dynamic client registration; discovery at
 `https://data.azquo.ai/.well-known/oauth-protected-resource`). Others can send an API key from the Azquo admin site:
 
