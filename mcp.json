@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "azquo": {
+      "type": "http",
+      "url": "https://data.azquo.ai/mcp"
+    }
+  }
+}
