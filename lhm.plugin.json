@@ -1,0 +1,1492 @@
+{
+  "author": "azquo",
+  "authorUrl": "https://github.com/azquo",
+  "cloudEndpoint": "https://data.azquo.ai/mcp",
+  "description": "Exact, shared memory for AI agents: a hierarchical database where totals add up, every write is attributed, and any figure traces back to its source.",
+  "homepage": "https://www.azquo.com/connect/",
+  "identifier": "azquo-azquo-mcp",
+  "name": "Azquo",
+  "prompts": [],
+  "resources": [],
+  "tools": [
+    {
+      "name": "apply_structure",
+      "title": "Apply structure",
+      "description": "Add parent → child relations between names. Idempotent: existing links stay; new ones are added.\nWith createMissing=true (default) names are auto-created if not found.\nReturns: applied, alreadyLinked, namesCreated (the names that didn't exist before), namesResolved\n(every child in input order with its resolved id — use to chain into edit_name_attributes).\n\n═══ PROVENANCE — required on every write ═══\nsource: origin reference (file/URL/document/short note). Lands in the audit trail.\nagent:  your AI agent name (e.g. \"Claude\"). Lands in the audit trail.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "relations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "parent": {
+                  "type": "string",
+                  "description": "Parent set/name (must exist or createMissing must be true)"
+                },
+                "child": {
+                  "type": "string",
+                  "description": "Child name to add under that parent"
+                }
+              },
+              "required": [
+                "parent",
+                "child"
+              ]
+            },
+            "description": "Non-empty array of {parent, child} pairs"
+          },
+          "createMissing": {
+            "type": "boolean",
+            "description": "Auto-create names that don't exist (default: true)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Origin reference — file, URL, document, or short note. REQUIRED."
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI agent name (e.g. \"Claude\"). REQUIRED."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "relations",
+          "source",
+          "agent"
+        ]
+      },
+      "annotations": {
+        "title": "Apply structure",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "aql_write",
+      "title": "Write values with AQL",
+      "description": "Write a 2D region of values into an Azquo database using the same AQL grammar as query_aql.\nAQL reference: https://www.azquo.com/connect/#aql\n\nMirrors the read shape — rowHeadings × columnHeadings × context — and adds a 2D `values` array.\nThe cell at values[r][c] is anchored to the union of rowHeadings[r] + columnHeadings[c] + context, exactly as a read at the same coordinates would resolve.\n\nTwo modes, distinguished by options.createNames:\n\n  Case 1 — TRANSACTIONAL find-or-create.\n    Caller supplies options.rowSet + options.rowLanguage (and/or columnSet + columnLanguage) + createNames: true.\n    Unresolved row/column headings are FIND-OR-CREATED under the target set with the language attribute set.\n    Arrow form: rowSet = \"A->B\" puts new names into B as a child of A (chain is auto-created if missing).\n    Use for: importing new transactions, customers, or any entity whose ID column is the row heading.\n\n  Case 2 — MULTI-FACETED all-or-nothing (default; createNames: false).\n    Every heading must resolve to an existing name. Any miss is fatal — no values land.\n    Use for: writing into a pre-structured region where the names are already known.\n\nStructure-only mode: omit `values` (or pass []). The call resolves the headings, find-or-creates names if createNames=true, but writes no values. Equivalent to declaring hierarchy.\n\nFor date columns where the duplicate-name trap applies, use options.rowLanguage = \"date\" (bare attribute name, no \"language\" prefix). rowLanguage / columnLanguage always take the literal attribute name verbatim.\n\ncreateNames and ignoreHeadingErrors are mutually exclusive — supply at most one.\n\n═══ PROVENANCE — required on every write ═══\nsource: origin reference (file/URL/document). Lands on Provenance.name in the audit trail.\nagent:  your AI agent name (e.g. \"Claude\"). Lands on Provenance.method.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name to write into"
+          },
+          "rowHeadings": {
+            "type": "array",
+            "description": "Row heading expressions as a 2D array of strings",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "columnHeadings": {
+            "type": "array",
+            "description": "Column heading expressions as a 2D array of strings",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "context": {
+            "type": "array",
+            "description": "Context expressions as a 2D array — use [[]] if no context needed",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "options": {
+            "type": "object",
+            "description": "Engine options — see query_aql for the full shape. Adds rowSet/columnSet/createNames for AQL-write."
+          },
+          "values": {
+            "type": "array",
+            "description": "2D array of cell values (string | number | boolean | null). Omit or [] for structure-only mode.",
+            "items": {
+              "type": "array"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "Origin reference — file, URL, document, or short note. REQUIRED."
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI agent name (e.g. \"Claude\"). REQUIRED."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "rowHeadings",
+          "columnHeadings",
+          "context",
+          "source",
+          "agent"
+        ]
+      },
+      "annotations": {
+        "title": "Write values with AQL",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "audit_cell",
+      "title": "Trace where a value came from",
+      "description": "Explain where one value in a query_aql result came from: the provenance (which import, file, user or\nwrite, and when) of every stored value behind the cell, and the calculation if the cell is a function or\na total. Read-only. Use it when a number looks wrong or the user asks \"where does this figure come from?\".\nFor the history of a name's attributes and set membership use name_history instead.\n\nCall it with exactly the rowHeadings, columnHeadings and context you passed to query_aql (the query is\nre-run to locate the cell), plus the zero-based row and col of the cell in that result's rows array.\nExample: after query_aql returned rows[2][0] = 1250, pass the same three arrays with row 2, col 0.\n\nReturns headline (the cell and its headings), function (the formula, when calculated) and\nauditForDisplayList - one entry per provenance: user, method, name (the source, e.g. the file), date,\ncontext and the values it supplied (capped at 1000). Returns {message: \"cell not found\"} when row/col\nis outside the result. Earlier, overwritten values show only while the database records history\n(history_settings).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name, as used for the query_aql call"
+          },
+          "rowHeadings": {
+            "type": "array",
+            "description": "Row heading expressions exactly as passed to query_aql, e.g. [[\"`Products` children\"]]",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "columnHeadings": {
+            "type": "array",
+            "description": "Column heading expressions exactly as passed to query_aql, e.g. [[\"Sales\"], [\"Jan\", \"Feb\"]]",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "context": {
+            "type": "array",
+            "description": "Context expressions exactly as passed to query_aql - [[]] if that query had none",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "row": {
+            "type": "integer",
+            "description": "Zero-based row index of the cell to audit"
+          },
+          "col": {
+            "type": "integer",
+            "description": "Zero-based column index of the cell to audit"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "rowHeadings",
+          "columnHeadings",
+          "context",
+          "row",
+          "col"
+        ]
+      },
+      "annotations": {
+        "title": "Trace where a value came from",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "copy_azquo_skills",
+      "title": "Copy Azquo skills",
+      "description": "Copy azquo_skills (the Azquo usage-skills database) from data.azquo.ai into the current business, so a local or offline Azquo has its own copy. Call it again later to refresh. ASK THE USER FIRST: confirm 'Copy azquo_skills from data.azquo.ai into <business>?' and wait for a yes. A database already called by the target name is REPLACED, and any local edits to it are lost, so say so when list_databases shows one already there. Use current_business to name the target in that question. No key is needed: the server fetches with the public read-only key.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "target": {
+            "type": "string",
+            "description": "Name for the local copy. Default azquo_skills."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Copy Azquo skills",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "copy_from_library",
+      "title": "Copy from library",
+      "description": "Copy one database from the shared Azquo library into the current business, with its reports, import templates and uploaded file types. ASK THE USER FIRST: confirm 'Copy <database> into <business>?' and wait for a yes before calling this — never copy speculatively or as a side effect of a browse request. Use current_business to name the target in that question, and list_library for the available database names. Nothing is ever overwritten: if the name is already taken in the target business the copy lands as 'name_1', 'name_2', and so on. Always tell the user the `target` name from the result, which is the name the database is actually stored under and may differ from the one they asked for — database names are sanitised, so spaces become underscores and punctuation is dropped.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Name of the library database to copy, exactly as returned by list_library."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Copy from library",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "create_database",
+      "title": "Create database",
+      "description": "Create a new, empty Azquo database in the current business (see current_business). Use it to start a new\nmodel from scratch; to start from a ready-made one use copy_from_library, and to experiment on an existing\ndatabase use try_on_copy. Needs an administrator or developer; the creator becomes its owner.\n\nThe name is cleaned: spaces become underscores and anything other than letters, digits and underscores is\ndropped (\"Sales 2026!\" becomes Sales_2026). Fails with database_create_failed if a database of that\nname already exists in the business - check list_databases first.\n\ndatabaseServerId: usually left out - the database then goes on the default server, the one the admin\nsite's New database offers first. Give it only to choose a particular server; an unknown id fails with\nunknown_databaseServerId and the error lists the valid ids.\n\nReturns the new database record: id, name (as cleaned), persistenceName, databaseServerId and its\ncounts (all zero). Next steps are usually apply_structure or import_file, then persist_database.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name for the new database, e.g. Sales_Forecast. Letters, digits and underscores; spaces become underscores"
+          },
+          "databaseServerId": {
+            "type": "string",
+            "description": "Optional. Integer id of the database server, as a string, e.g. \"0\". Leave out to use the default server"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "title": "Create database",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "create_upload_link",
+      "title": "Create upload link",
+      "description": "Get a link where the USER uploads documents (Word, PDF, Excel, PowerPoint, anything) to keep with a database.\nUse this whenever a file should be stored in Azquo - NEVER base64 a file into a tool call. Give the user the\nurl; they open it in a browser and drop the files. The server keeps each original (downloadable later) and\nmakes a Markdown copy of Word/PDF/Excel/PowerPoint/HTML/text for you to read with read_document.\nPass nameId to attach them to a name, typically a Meta info note: each upload adds a short attribute\nDOCUMENT <id> to it (IMAGE <id> for a png/jpg/gif/webp/bmp picture) - the file itself is never put in\nthe name. The link lasts 30 minutes and takes any\nnumber of files. Afterwards call list_documents to see what arrived.\n\nFILES YOU MADE YOURSELF (e.g. a .docx built in your code sandbox): do not make the user download and\nre-upload them. If your sandbox can reach this server, POST them straight to the link with the returned\n`curlCommand` (multipart, one -F files=@... per file); the reply is JSON with each document's id. The link\nis the only credential - no API key. If the request cannot connect, the sandbox's network access does not\ninclude this server: tell the user it can be allowed in Claude.ai's code-execution network settings, and\nmeanwhile give them the url.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database the documents belong to"
+          },
+          "nameId": {
+            "type": "integer",
+            "description": "Optional: id of the name (e.g. a Meta info note) to attach the documents to"
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional: a line shown on the upload page saying what to upload, e.g. \"The signed contract for Acme\""
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Create upload link",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "current_business",
+      "title": "Show current business",
+      "description": "Return the currently effective business and user for this MCP session, and whether an acting-as override is in effect. Use before any destructive action.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "title": "Show current business",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "delete_database",
+      "title": "Delete database",
+      "description": "Permanently delete an Azquo database by name, with all its names, values and history. NOT REVERSIBLE -\nthere is no restore, and its backups are deleted too. Do not call without the user explicitly asking for\nthis database to be deleted; confirm the name and the business (current_business) with them first.\nTo remove a few names use delete_name (restorable with restore_name); to test changes safely use\ntry_on_copy.\n\nAlso removed: reports left linked to no other database or user, its import template if no other database\nuses it, its upload history, pending uploads and uploaded source files. Reports and templates shared with\nother databases are kept.\n\nNeeds an administrator of the business, or the developer who owns the database; the name must be exact\n(list_databases). Errors database_not_found for an unknown name. Returns {deleted: true, name} - also\nwhen a developer who does not own it is refused silently, so confirm with list_databases afterwards.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Exact name of the database to delete, as shown by list_databases, e.g. Sales_Forecast"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "annotations": {
+        "title": "Delete database",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "delete_import_template",
+      "title": "Delete import template",
+      "description": "Permanently delete one import template (the workbook of rules that interprets incoming data files) and its\nfile on disk. NOT REVERSIBLE - there is no restore; read it first with read_workbook if its rules may be\nwanted again. Do not delete without the user asking for it.\n\nGet the id from list_import_templates. Administrators only, and only templates in the current business.\nA database that used the template is not updated and still points at the deleted id, so imports into it\nlose those rules; list_database_sheets shows which template each database uses.\n\nReturns {deleted: true, id}. That is returned even when nothing was removed (unknown id, other business,\nor not an administrator), so call list_import_templates afterwards to confirm it has gone.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Numeric import template id, as returned by list_import_templates, e.g. 42"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "annotations": {
+        "title": "Delete import template",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "delete_name",
+      "title": "Delete name",
+      "description": "Delete a name from the database. Its values are deleted with it, as are the documents and images uploaded\nto it with create_upload_link (the response's documentsDeleted says how many) - those cannot be brought back.\nThe name itself can: restore_name returns it, with its attributes, sets and children, as a new name (find it\nwith list_deleted_names).\nLooks up by integer nameId — the id returned in apply_structure's namesResolved, or surfaced\nby describe_set / describe_query. Returns 404 if no name matches the id.\n\n═══ PROVENANCE — required on every write ═══\nsource: origin reference (why this name is being deleted — usually a ticket, note, or upstream document). Lands in the audit trail.\nagent:  your AI agent name (e.g. \"Claude\"). Lands in the audit trail.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "nameId": {
+            "type": "integer",
+            "description": "Integer id of the name to delete (from apply_structure namesResolved, describe_set, describe_query, etc.)"
+          },
+          "source": {
+            "type": "string",
+            "description": "Origin reference — file, URL, document, or short note explaining the deletion. REQUIRED."
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI agent name (e.g. \"Claude\"). REQUIRED."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "nameId",
+          "source",
+          "agent"
+        ]
+      },
+      "annotations": {
+        "title": "Delete name",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "delete_report",
+      "title": "Delete report",
+      "description": "Permanently delete one online report (an Excel report users run in Azquo): its workbook file, its menu\nentries, its external data requests and its schedules. NOT REVERSIBLE - unlike delete_name there is no\nrestore; read it first with read_workbook if its layout may be wanted again. Do not delete without the\nuser asking for it. The databases the report showed are not touched.\n\nGet the id from list_reports. Needs an administrator, or the developer who uploaded the report.\nErrors report_not_found when the id is not one of the reports list_reports shows you.\nReturns {deleted: true, id}.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Numeric report id, as returned by list_reports, e.g. 17"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
+      "annotations": {
+        "title": "Delete report",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "describe_database",
+      "title": "Describe database",
+      "description": "Get an overview of an Azquo database: top-level sets with child counts, available attributes,\nand the 'meta information' subtree (semantic descriptions stored back into the database).\n\nUse this as the first step when exploring an unfamiliar database — one call gives more context\nthan multiple AQL probes.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name to describe"
+          },
+          "depth": {
+            "type": "integer",
+            "description": "Depth of the meta-information subtree to return (default: 3)"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Attribute names to include on each meta-info node, e.g. [\"AI TEXT\"]."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Describe database",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "describe_query",
+      "title": "Look up names and notes",
+      "description": "Resolve a name-query expression and return the matched names with full details: parents,\nattributes (including AI Text bodies and any other attribute values), and child counts.\n\nThe query is a name expression as understood by the Azquo NameQueryParser. Common forms:\n  - An exact display name (e.g. \"State + Territory derivation\")\n  - A set verb in POSTFIX position after a backtick-quoted name:\n      `API endpoints` children\n      `Florida Coverages` parents\n      `Sales` from 2024 to 2025\n    Set verbs are ALWAYS postfix. The prefix English form \"children of X\" is NOT valid\n    AQL — the parser will try to resolve \"of\" as a name and fail.\n  - Set algebra on backtick-quoted names: `Florida` * `Coverages` (intersection),\n    `A` + `B` (union), `A` - `B` (difference)\n\nRead-only: \"edit:...\" commands and \"... as <set>\" assignments change the database, so they are refused\nhere - run them through aql_write. A name containing the word \"as\" must be in backticks.\n\nUse this after list_names / describe_set to read attribute values that the other discovery\ntools don't surface — most importantly the AI Text attribute on a note. Internal/user storage\nattributes are filtered out by the server.\n\nEach resolved entry includes its integer `id` — use it directly to chain into edit_name_attributes\nor delete_name without a separate lookup.\n\nLimit defaults to 50 resolved names per call.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "query": {
+            "type": "string",
+            "description": "Name-query expression. Postfix set verbs only — `Topic` children, NOT `children of Topic`."
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Max resolved names to return (default: 50)"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "query"
+        ]
+      },
+      "annotations": {
+        "title": "Look up names and notes",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "describe_set",
+      "title": "Describe set",
+      "description": "Drill into a named set: returns its child names with child counts, plus the parent path.\nUse after describe_database to explore a specific set.\n\nFor meta-info topic reads, pass depth and attributes together to pull the whole topic plus\nits note bodies in a SINGLE round-trip — e.g. depth=2, attributes=[\"AI TEXT\"] on the\n\"Start here\" set of Azquo_Skills returns every Start-here note with its full AI TEXT body.\nWithout these params you would need 1 + N calls (one describe_set plus one describe_query\nper child). Prefer the combined call for any topic-read.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "setName": {
+            "type": "string",
+            "description": "Name of the set to describe"
+          },
+          "depth": {
+            "type": "integer",
+            "description": "How many levels of children to expand (default: 1)"
+          },
+          "attributes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Attribute names to include on each returned child, e.g. [\"AI TEXT\"]. Omit for none."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "setName"
+        ]
+      },
+      "annotations": {
+        "title": "Describe set",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "edit_name_attributes",
+      "title": "Edit name attributes",
+      "description": "Surgical attribute edit on an existing name.\nEach entry in the attributes map sets that attribute on the named name; an empty string value\ndeletes that attribute. Attributes not mentioned in the map are left untouched (this is NOT\na wipe-and-replace).\n\nLooks up by integer nameId — the id returned in apply_structure's namesResolved, or surfaced\nby describe_set / describe_query. Returns 404 if no name matches the id — silent no-op is never\nthe result.\n\nTo rename a name, set its default_display_name attribute via this same call.\n\n═══ PROVENANCE — required on every write ═══\nsource: where this edit originates — file path, URL, document name, or short note. Lands in the audit trail so the user can return to it.\nagent:  your AI agent name (e.g. \"Claude\"). Lands in the audit trail so the user can see which AI made the edit.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "nameId": {
+            "type": "integer",
+            "description": "Integer id of the name to edit (from apply_structure namesResolved, describe_set, describe_query, etc.)"
+          },
+          "attributes": {
+            "type": "object",
+            "description": "Map of attribute-name → attribute-value (string). Empty value deletes the attribute. Values are stored verbatim, so JSON or other encoded content should be stringified by the caller and parsed on read.",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "source": {
+            "type": "string",
+            "description": "Origin reference — file, URL, document, or short note. REQUIRED."
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI agent name (e.g. \"Claude\"). REQUIRED."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "nameId",
+          "attributes",
+          "source",
+          "agent"
+        ]
+      },
+      "annotations": {
+        "title": "Edit name attributes",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "get_report_data",
+      "title": "Run report",
+      "description": "Fetch the full data for a report, including all regions and current choice values.\n\nReports in Azquo are Excel-based templates with named data regions. Each region contains\nrow/column headings and a 2D array of values. Reports also support 'choices' — named\nparameters that filter the data (e.g. selecting a business unit, time period, etc).\n\nUse it to see what a report shows a user - the figures as laid out in the report. For an ad-hoc\nquestion that no report answers, use query_aql; to see a report's formulas and layout rather than its\ndata, use read_workbook. Find reports with list_reports (or list_database_sheets for one database).\n\nPass reportId as either a numeric ID or the report name.\nThe database parameter is required. Any additional choices can be passed as key/value pairs.\nChoices are SAVED as this user's selections, as when they are picked in the report in a browser, so\nthey also apply to the next run of any report using the same choice. A choice passed as \"\" clears\nthe saved selection; leave a choice out to keep it as it is.\n\nExample choices: { \"Month\": \"Jan-24\", \"Department\": \"Sales\" }\n\nErrors report_not_found when the report does not exist or is not one this user may run, and\nreport_render_failed when the report cannot be calculated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "reportId": {
+            "description": "Report ID (number) or exact report name (string), from list_reports, e.g. 17 or \"Monthly Sales\"",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ]
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name to run the report against - usually the database list_reports shows for it"
+          },
+          "choices": {
+            "type": "object",
+            "description": "Optional choice parameters to filter report data, e.g. { Month: 'Jan-24' }. Saved as the user's selections; \"\" clears one",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "reportId",
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Run report",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "history_settings",
+      "title": "Change history settings",
+      "description": "See or change whether a database records history - value history (audit_cell), name attribute history and set\nmembership history (name_history), all together - and clear it.\n\naction:\n  get   - current setting, and when it was last switched and cleared (the default)\n  off   - stop recording, e.g. while a database is in development and every test import rewrites it\n  on    - start recording again (the default for every database)\n  clear - DELETE ALL value, name and set history for the database. NOT REVERSIBLE. Needs confirm: \"CLEAR\".\n          Typically at the end of development so history starts from real use. Do not clear without the\n          user explicitly asking for it.\n\noff/on/clear need an administrator, or the developer who owns the database, and provenance:\nsource: why. agent: your AI agent name (e.g. \"Claude\").",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "action": {
+            "type": "string",
+            "description": "get (default), on, off or clear",
+            "enum": [
+              "get",
+              "on",
+              "off",
+              "clear"
+            ]
+          },
+          "confirm": {
+            "type": "string",
+            "description": "Must be \"CLEAR\" for action clear"
+          },
+          "source": {
+            "type": "string",
+            "description": "Why - required for on/off/clear"
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI agent name - required for on/off/clear"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Change history settings",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "import_file",
+      "title": "Import file",
+      "description": "Import SMALL INLINE DATA into an Azquo database - a base64-encoded blob under `fileContent`.\nFilename selects the import template.\n\nTHIS IS THE NARROW ROUTE, NOT THE GENERAL ONE. It base64-transports the file through the agent's\ncontext, so it is capped at 256 KB and refuses anything larger. Use it ONLY when the\ndata exists solely in your context and you have no shell. Otherwise:\n  - fetchable by URL -> import_from_url. The SERVER downloads it; nothing crosses your context.\n  - you can run curl -> POST /api/importdata with -F 'file=@...' -F 'database=...' and an\n                        X-Azquo-Business header if switching business. ~0.1s for a 57 KB file\n                        where this tool takes minutes.\nSee azquo_skills id 813 for the HTTP recipe.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Target database name"
+          },
+          "filename": {
+            "type": "string",
+            "description": "Original filename including extension — used to select the correct import template"
+          },
+          "fileContent": {
+            "type": "string",
+            "description": "Base64-encoded file bytes. Capped at 256 KB decoded - use import_from_url or POST /api/importdata for anything larger."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "filename",
+          "fileContent"
+        ]
+      },
+      "annotations": {
+        "title": "Import file",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "import_from_query",
+      "title": "Import from external database",
+      "description": "Run SQL against a configured external database connection and import the result into an Azquo\ndatabase. THE SERVER CONNECTS AND FETCHES - the rows never pass through your context, and the\ncredentials are held server-side, so you never see or supply them.\n\nThis is the right tool for a business's own internal database. Use list_external_connections\nto see what is configured; if the source you need is not there, ask an administrator to add\nit in azquo-admin rather than looking for another route.\n\nTWO WAYS TO SAY WHAT THE COLUMNS MEAN, and you need one of them:\n  Supply 'headings' - a tab-separated Azquo header line matching the SELECT order. The\n    source's own column names are discarded. Right for a one-off load.\n  Omit 'headings' - the source's column names are kept as the header row, and the target\n    database's IMPORT TEMPLATE interprets them. Right for a recurring feed, because the\n    mapping then lives server-side instead of being restated on every run. Check\n    list_import_templates for the database first.\n\nImported by the same path as POST /api/importdata, so the usual header grammar applies (see\nAzquo_Skills > Import). Check 'values adjusted' in the result against what you expected.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Target Azquo database name"
+          },
+          "connection": {
+            "type": "string",
+            "description": "Name of the external database connection, from list_external_connections"
+          },
+          "sql": {
+            "type": "string",
+            "description": "SQL to run against that connection. Read-only queries only - this is an import."
+          },
+          "headings": {
+            "type": "string",
+            "description": "OPTIONAL. Tab-separated Azquo header line, one heading per selected column in the order the SQL returns them. SUPPLY IT for a one-off load: the source's own column names are then discarded and yours are used. OMIT IT for a recurring feed that the target database has an IMPORT TEMPLATE for: the source's column names are kept as the header row and the template interprets them. One or the other is needed - with neither, the import has nothing to tell it what the columns mean."
+          },
+          "filename": {
+            "type": "string",
+            "description": "File name to import under. Import instructions are parsed from it, so it matters. Defaults to <connection>_query.tsv"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "connection",
+          "sql"
+        ]
+      },
+      "annotations": {
+        "title": "Import from external database",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "import_from_url",
+      "title": "Import from URL",
+      "description": "Bulk-load a delimited-text or spreadsheet file into a database by URL. THE SERVER DOWNLOADS IT,\nso the file never passes through your context - this is the right tool for anything large.\n\nSame import path as POST /api/importdata: the file needs a self-describing Azquo header row\n(see Azquo_Skills > Import), and the FILE NAME matters because import instructions are read\nfrom it. Returns the same validation summary including lines imported and values adjusted -\ncheck that against what you expected, a completed import is not proof of a correct one.\n\nUse this instead of import_file for anything beyond a few KB. If the data exists only in your\ncontext and nowhere fetchable, either write it to a file and POST /api/importdata with a\nshell, or fall back to import_file and accept the cost.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Target database name"
+          },
+          "url": {
+            "type": "string",
+            "description": "http or https URL the SERVER can reach. Public addresses only."
+          },
+          "filename": {
+            "type": "string",
+            "description": "Override the file name used for the import. Defaults to the last path segment of the URL. Set this when the URL does not end in a sensible name, because import instructions are parsed out of the file name."
+          },
+          "headings": {
+            "type": "string",
+            "description": "The self-describing Azquo header line to PREPEND to the downloaded file, e.g. `Ford;child of Manufacturer`\\t`.Description`\\t`Units;peers {Manufacturer, Month}`. Almost always needed: a file fetched from somewhere else will carry its own headings or none, not Azquo ones. Use the same delimiter as the file. Omit only if the file already has an Azquo header row."
+          },
+          "replaceFirstLine": {
+            "type": "boolean",
+            "description": "Drop the file's own first line before prepending 'headings'. Set true when the source has its own header row that the Azquo headings replace; false (default) when the file is bare data."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "url"
+        ]
+      },
+      "annotations": {
+        "title": "Import from URL",
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": false,
+        "openWorldHint": true
+      }
+    },
+    {
+      "name": "list_businesses",
+      "title": "List businesses",
+      "description": "List the businesses this MCP session can switch between. Peers are derived from the API key owner's email — one entry per business that email is a member of. Use switch_business to change the active one.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+      },
+      "annotations": {
+        "title": "List businesses",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_database_sheets",
+      "title": "List database sheets",
+      "description": "List every Excel workbook associated with one database, grouped into the three kinds Azquo holds: `reports` (online reports users run), `setupSheets` (the workbooks that built the database in the first place), and `importTemplates` (the rules for interpreting incoming data files). Use this to answer 'what spreadsheets come with this database?' — list_reports and list_import_templates are business-wide, whereas this is scoped to the one database named. Counts per group are included, and a group is simply empty when a database has none of that kind.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "List database sheets",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_databases",
+      "title": "List databases",
+      "description": "List all Azquo databases available to the current user. The shared `azquo` business overlays two DBs onto every session: `azquo_skills` (read-only usage skills, always readable) and `azquo_suggestions` (open-write DB where any agent can propose improvements). Overlaid entries carry `overlay: true` plus `readOnly` and `openWrite` flags; local DBs never carry them. Every database in the `azquo_library` training library is also overlaid, read-only, carrying `library: true` — so worked examples can be opened and read in place with describe_database / query_aql, without copying them first. Use copy_from_library only when the user actually wants their own writable copy.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List databases",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_deleted_names",
+      "title": "List deleted names",
+      "description": "Names that have been deleted, most recent first, with who deleted them and when, how many children they had\nand which sets they were in. parentId narrows it to names that were in that set. Deleted names keep their ids\nin the history: pass one to name_history for its last attributes, or restore_name to bring it back.\nOnly deletions made while the database was recording history (history_settings) are listed.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "parentId": {
+            "type": "integer",
+            "description": "Optional id of a set - only names deleted from it"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Most to return (default 100)"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "List deleted names",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_documents",
+      "title": "List documents",
+      "description": "List the documents stored with a database (uploaded via create_upload_link), newest first: id, filename,\nsize, the name they are attached to, and markdownChars - the size of the Markdown copy read_document\nreturns (null when there is none, with markdownNote saying why). Pass nameId for one name's documents.\n\nRead-only. Use it to find a document's id before read_document, or to see what source files (PDFs,\nspreadsheets, notes) back a database. Data files loaded by import_file are not documents and are not\nlisted here. Returns {database, count, documents}, every document at once (no paging). Errors\ndatabase_not_found when the database does not exist or this user cannot open it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "nameId": {
+            "type": "integer",
+            "description": "Optional: only documents attached to this name - a nameId from list_names or describe_set, e.g. 123"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "List documents",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_external_connections",
+      "title": "List external connections",
+      "description": "List the external database connections configured for this business.\nUse the connection NAME with import_from_query.\n\nCredentials are never returned - the server holds them. Connections are set up by an\nadministrator in azquo-admin; if the source you need is not listed, ask for it to be added\nrather than looking for another route to the data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        }
+      },
+      "annotations": {
+        "title": "List external connections",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_import_templates",
+      "title": "List import templates",
+      "description": "List every import template in the current business. An import template is a workbook of rules that tells\nAzquo how to interpret incoming data files - which columns become which names and values. Read-only, no\nparameters. Use it to check what templates exist before import_file or import_from_query, or to find the\nid for delete_import_template. For the template one database uses, use list_database_sheets; to read a\ntemplate's rules, read_workbook.\n\nReturns an array of templates: id, templateName, filename, notes, user (who uploaded it) and\ndateCreated. Empty when the business has none. Not paginated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List import templates",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_library",
+      "title": "List library examples",
+      "description": "Browse the shared Azquo library of example/demo databases. Returns every catalogue entry in one call with its full description inline, so no follow-up calls are needed to find out what a database contains. Each row carries: name, sector, complexity, features, status, description, and (when the database is uploaded) nameCount and valueCount. Answer questions like 'is there an example with setup sheets?' by reading the description and features text of these rows — there is no separate search endpoint. Copying is a distinct, explicitly-requested step: use copy_from_library, and only when the user has asked for it.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List library examples",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_names",
+      "title": "Find names",
+      "description": "Find names in a database by text match on their display name, when you know roughly what something is\ncalled but not where it sits. Read-only. Typical use: resolve an ambiguous label (\"Sales\" may be a\nmeasure in one set and a department in another) to the right nameId before querying or editing it.\n\nNeighbours: describe_set walks a set you already know; describe_query resolves an exact name or a\nname expression and returns full attributes; list_deleted_names finds deleted names (this tool only sees\ncurrent ones).\n\nPass startsWith for a prefix match or contains for a substring match (startsWith wins if both are\ngiven). Matching ignores case. With neither, names are returned unfiltered up to the cap.\nExample: {database: \"Sales\", startsWith: \"Jan\"}.\n\nReturns an array of {name, nameId, sets} - sets are the names of the sets it belongs to. At most cardinalityCap\nnames come back (default 500); with a prefix match the cap applies before the prefix filter, so narrow the text if the result looks short.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name to search"
+          },
+          "startsWith": {
+            "type": "string",
+            "description": "Match display names starting with this text, ignoring case, e.g. \"Jan\""
+          },
+          "contains": {
+            "type": "string",
+            "description": "Match display names containing this text, ignoring case, e.g. \"forecast\" (ignored if startsWith set)"
+          },
+          "cardinalityCap": {
+            "type": "integer",
+            "description": "Max names to return (default: 500; 0 or less for no limit)"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Find names",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_reports",
+      "title": "List reports",
+      "description": "List the online reports (Excel reports users run in Azquo) the current user can see, across every\ndatabase in the business. Read-only, no parameters. Use it to find a report's id or name before\nget_report_data, read_workbook or delete_report. For the reports, setup sheets and import templates of\none database use list_database_sheets instead.\n\nWho sees what: an administrator sees every report in the business; a developer sees the reports on\ndatabases they own; other users see the reports on their menus.\n\nReturns an array of reports: id, reportName (with \" uploaded by <user>\" appended), database (the one it\nruns against; empty for reports usable with any database, \"No database\" when unlinked), filename,\ncategory, explanation, dateCreated, author. A report linked to several databases appears once for each.\nWith none visible, a single placeholder with id 0 and reportName \"No reports found\" is returned.\nNot paginated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List reports",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "list_users",
+      "title": "List users",
+      "description": "List the user accounts of the current business (see current_business; switch_business to change it).\nRead-only. Use it to answer who has access and with what role, or to find a user's email or team.\nFor the user behind this MCP session use current_business instead.\n\nWho sees what: an administrator gets every user in the business; a master user gets the users they\ncreated; anyone else gets an empty list.\n\nReturns an array, one entry per user: id, email, name, status (the role, e.g. ADMINISTRATOR, MASTER,\nDEVELOPER, READONLY), endDate (yyyy-MM-dd, when access expires), selections and team. Passwords are\nnever returned. Not paginated.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "List users",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "name_history",
+      "title": "Show name history",
+      "description": "History of one name: every earlier version of its attributes (who set them, who replaced them, when), each\nchange to its membership as a set (names added/removed, by whom, when), and - if it has been deleted - its\nlast attributes, parents and children. Works for deleted names too: use list_deleted_names to find their ids.\n\nasAt (optional): an ISO date (2026-09-01, meaning the end of that day) or date time (2026-09-01T14:30) - adds\nthe name's attributes and set members as they were then.\n\nHistory is written when the database persists, so an edit made seconds ago may not show yet. A database can\nhave history switched off or cleared (history_settings) - no entries then means none recorded, not no changes.\nOnly attribute changes and set membership are recorded; a name's values have their own history (audit_cell).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "nameId": {
+            "type": "integer",
+            "description": "Integer id of the name (current or deleted)"
+          },
+          "asAt": {
+            "type": "string",
+            "description": "Optional ISO date or date time to reconstruct the name's attributes and members as at"
+          },
+          "maxMembers": {
+            "type": "integer",
+            "description": "Most names to list per membership change or as-at list (default 100); counts are always complete"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "nameId"
+        ]
+      },
+      "annotations": {
+        "title": "Show name history",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "persist_database",
+      "title": "Save database to disk",
+      "description": "Flush pending writes for this database to disk.\nEdits via edit_name_attributes, apply_structure, AQL edit: primitives etc. are queued in-memory; call this to make them durable.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database"
+        ]
+      },
+      "annotations": {
+        "title": "Save database to disk",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "query_aql",
+      "title": "Query with AQL",
+      "description": "Query an Azquo database using AQL (Azquo Query Language). AQL reference: https://www.azquo.com/connect/#aql\n\nRead-only - this never creates or changes names or values; a heading with an edit: command or an \"as\" set\nassignment is refused (use aql_write for those). The main way to get numbers out of a database\nfor an ad-hoc question. Neighbours: aql_write saves values with the same heading model; get_report_data\nruns an existing report; describe_set / describe_query explore names and sets rather than values;\naudit_cell explains where one cell of this tool's result came from.\n\nAQL works with row headings, column headings, and context — all as nested string arrays, laid out like\nthe heading area of a spreadsheet: each inner array is one row of heading cells, each string one heading.\nIn a stack of headings, a heading on an earlier line applies until another heading or a \".\" replaces\nit, so it need not be repeated; the LAST line (the right-hand column, for row headings) is where data\nanchors and must be filled in every position that should have data.\n\nExample — get monthly sales figures by product:\n  rowHeadings:    [[\"`Products` children\"]]\n  columnHeadings: [[\"Sales\"], [\"Jan\", \"Feb\", \"Mar\"]]\n  context:        [[\"2024\"]]\n\nThe response contains:\n  rowHeadings    — resolved row labels\n  columnHeadings — resolved column labels\n  context        — resolved context\n  rows           — 2D array of cell values (one entry per [row][col]; raw types: string|number|boolean|null)\n  rowCount, columnCount, truncated — pagination info (options.rowLimit, default 1000)\n\nRaise options.rowLimit (0 = no limit) when truncated is true. A heading naming something that is not in\nthe database fails with aql_syntax and the engine's message - find the right name with list_names - unless\noptions.ignoreHeadingErrors is true. Other failures return aql_runtime.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name to query"
+          },
+          "rowHeadings": {
+            "type": "array",
+            "description": "Row heading expressions as a 2D array of strings",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "columnHeadings": {
+            "type": "array",
+            "description": "Column heading expressions as a 2D array of strings",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "context": {
+            "type": "array",
+            "description": "Context expressions as a 2D array — use [[]] if no context needed",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "options": {
+            "type": "object",
+            "description": "Engine options, all optional - omit for defaults. rowLimit (default 1000, 0 = none), columnLimit; sortRow / sortColumn (a heading to sort by) with sortRowAsc / sortColumnAsc; hideRows / hideCols (1 drops blank rows/columns); rowLanguage / columnLanguage (attribute used to match heading text, e.g. \"language date\"); ignoreHeadingErrors (blank instead of an error for unknown headings); valueFormat \"raw\" (default) or \"formatted\". Example: {\"rowLimit\": 50, \"sortColumn\": \"Sales\", \"sortColumnAsc\": false}"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "rowHeadings",
+          "columnHeadings",
+          "context"
+        ]
+      },
+      "annotations": {
+        "title": "Query with AQL",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_document",
+      "title": "Read document",
+      "description": "Read a stored document (see list_documents) as Markdown - headings, lists, tables, slides and pages kept.\nLong documents come a page at a time: 40000 characters by default; when truncated is true,\ncall again with offset = nextOffset. Also returns downloadUrl (valid 60 minutes) for the ORIGINAL file and\nmarkdownUrl for the Markdown - give these to the user; do not fetch them yourself. When a document has no\nMarkdown (e.g. an image), markdownNote says why and only the download link is returned.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "id": {
+            "type": "integer",
+            "description": "Document id, from list_documents or a DOCUMENT <id> / IMAGE <id> attribute"
+          },
+          "offset": {
+            "type": "integer",
+            "description": "Character offset to start from (default 0)"
+          },
+          "maxChars": {
+            "type": "integer",
+            "description": "Characters to return (default 40000, max 200000)"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "id"
+        ]
+      },
+      "annotations": {
+        "title": "Read document",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "read_workbook",
+      "title": "Read workbook",
+      "description": "Read inside one workbook held against a database — a `report`, `importTemplate` or `setupSheet` (use list_database_sheets to see what exists). Called without `sheet` it returns the workbook's shape: every sheet with its extent, and every defined name with its scope and target — for an Azquo workbook the az_ names ARE the model, so start here. Called WITH `sheet` it returns that sheet's cells, showing formulas in preference to computed values. It returns structure and text, NOT the file itself: workbooks run to megabytes, so use the admin's Download button if you want the actual file. Setup sheets and import templates are administrator/developer only; reports follow the caller's report permissions.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "report",
+              "importTemplate",
+              "setupSheet"
+            ],
+            "description": "Which of the three kinds of workbook to read"
+          },
+          "name": {
+            "type": "string",
+            "description": "For a report, its report NAME or its filename; for an import template or setup sheet, the filename as returned by list_database_sheets"
+          },
+          "sheet": {
+            "type": "string",
+            "description": "Omit for the workbook's structure; give a sheet name to read its cells"
+          },
+          "fromRow": {
+            "type": "integer",
+            "description": "First row to read, 0-based (default 0). Use with maxRows to page a large sheet."
+          },
+          "maxRows": {
+            "type": "integer",
+            "description": "Rows to return (default 200)"
+          },
+          "maxCols": {
+            "type": "integer",
+            "description": "Columns to return (default 40)"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "kind",
+          "name"
+        ]
+      },
+      "annotations": {
+        "title": "Read workbook",
+        "readOnlyHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "restore_name",
+      "title": "Restore deleted name",
+      "description": "Bring back a deleted name (ids from list_deleted_names or name_history). It returns as a NEW name with a new id,\nits attributes as they were when deleted, put back in the sets it was in and given back its children - where those\nstill exist. Its VALUES ARE NOT RESTORED: deleting a name deletes its values. The response counts what was relinked\nand what could not be. The restore's provenance records the old id, so the two histories can be followed.\n\n═══ PROVENANCE — required on every write ═══\nsource: why the name is being restored. agent: your AI agent name (e.g. \"Claude\").",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "database": {
+            "type": "string",
+            "description": "Database name"
+          },
+          "nameId": {
+            "type": "integer",
+            "description": "Id the name had before it was deleted"
+          },
+          "source": {
+            "type": "string",
+            "description": "Why it is being restored - ticket, note or document. REQUIRED."
+          },
+          "agent": {
+            "type": "string",
+            "description": "AI agent name (e.g. \"Claude\"). REQUIRED."
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "database",
+          "nameId",
+          "source",
+          "agent"
+        ]
+      },
+      "annotations": {
+        "title": "Restore deleted name",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "switch_business",
+      "title": "Switch business",
+      "description": "Switch the active business for subsequent MCP tool calls in this session. The switch is this MCP session's alone: other agents or chats on the same key stay where they are, and a new session starts in the key owner's own business - which a client may open between turns, so check current_business before writing. To run one call in another business without switching, give that call a business argument instead; every tool except this one, list_businesses and current_business takes it. Target must be one the current bearer can reach — call list_businesses first if unsure. Provide exactly one of businessName, businessId, or userId. Writes in the current business are kept when switching; persist_database confirms a batch reached disk (more in azquo_skills id 775).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "businessName": {
+            "type": "string",
+            "description": "Business name (case-insensitive match)."
+          },
+          "businessId": {
+            "type": "integer",
+            "description": "Business id."
+          },
+          "userId": {
+            "type": "integer",
+            "description": "Peer User id (from list_businesses)."
+          }
+        },
+        "required": []
+      },
+      "annotations": {
+        "title": "Switch business",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      }
+    },
+    {
+      "name": "try_on_copy",
+      "title": "Try changes on a copy",
+      "description": "Try changes on a throwaway copy of a database before making them for real.\naction=start makes an in-memory copy of the database. From then on EVERY call in this session on that database - reads and writes - goes to the copy, and each result begins 'TRIAL COPY of ...'. Nothing on the copy is ever saved.\nCheck the outcome (query_aql, describe_set, get_report_data ...). Then action=discard to throw the copy away and return to the real database. To keep the changes, make the same calls again after discarding - there is no commit.\naction=status lists this session's trials.\nWhile any trial is on, tools whose effects would reach beyond the copy are refused: imports, create/delete database, delete report/import template, library copies, upload links, and the name history tools.\nUse it for a risky restructure, a bulk edit:, or a first attempt at an unfamiliar write. A copy holds the whole database in server memory - start warns when the database is large - so discard it as soon as you are done. A copy unused for 2 hours is discarded by the server; calls then fail loudly until you discard the trial here.\nA trial belongs to this MCP session only; another agent on the same key keeps working on the real database.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "start",
+              "discard",
+              "status"
+            ],
+            "description": "start, discard or status"
+          },
+          "database": {
+            "type": "string",
+            "description": "Database name - required for start and discard"
+          },
+          "business": {
+            "type": "string",
+            "description": "Optional. The business this call is for, by name, e.g. \"azquo\" - it then runs there whatever business the session is in. Worth giving on writes when you work in more than one business: a new MCP session starts in the login's own business. list_businesses shows the names."
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "annotations": {
+        "title": "Try changes on a copy",
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": false,
+        "openWorldHint": false
+      }
+    }
+  ],
+  "version": "1.0.0",
+  "icon": "https://raw.githubusercontent.com/azquo/azquo-mcp/main/azquo-logo-400.png",
+  "tags": [
+    "database",
+    "memory",
+    "multi-agent",
+    "audit",
+    "finance",
+    "excel",
+    "provenance"
+  ]
+}
